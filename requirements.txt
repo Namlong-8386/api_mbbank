@@ -1,0 +1,15 @@
+flask
+flask-cors
+tensorflow
+tf_keras
+numpy
+matplotlib
+playwright
+flask
+flask-cors
+keras
+matplotlib
+numpy
+playwright
+tensorflow
+tf_keras
