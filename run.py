@@ -397,6 +397,16 @@ def login_endpoint():
 
 @app.route('/api/history', methods=['POST', 'GET'])
 def history_endpoint():
+    # Cho phép gửi credentials qua body để tiện test từ script client.
+    content = request.json or {}
+    if content.get('phone') or content.get('password') or content.get('stk'):
+        CONFIG['phone'] = content.get('phone') or CONFIG['phone']
+        CONFIG['password'] = content.get('password') or CONFIG['password']
+        CONFIG['stk'] = content.get('stk') or CONFIG['stk']
+        # Reset session để dùng credentials mới.
+        mb_session.logged_in = False
+        mb_session.last_history_data = None
+
     if mb_session.last_history_data and (time.time() - mb_session.last_history_time) < 30:
         return jsonify(mb_session.last_history_data)
     if not mb_session.logged_in:

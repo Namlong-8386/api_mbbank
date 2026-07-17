@@ -45,6 +45,13 @@ File `.env` đã được thêm vào `.gitignore` nên không bị commit.
 - `GET /api/status` — Trạng thái đăng nhập
 - `GET /api/login` — Đăng nhập MBBank
 - `GET /api/history` — Lấy lịch sử giao dịch (tự động login nếu cần, cache 30 giây)
+- `POST /api/history` — Lấy lịch sử giao dịch, cho phép gửi credentials qua body
+  - Body: `{"phone": "...", "password": "...", "stk": "..."}`
+
+## Script Python sẵn có
+
+- `python client.py` — Nhập credentials và gọi API lịch sử (yêu cầu server đang chạy).
+- `python get_history.py` — Nhập credentials, tự khởi động server nếu chưa chạy, rồi lấy lịch sử.
 
 ## Lưu ý
 
