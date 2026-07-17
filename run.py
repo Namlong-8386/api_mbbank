@@ -13,7 +13,7 @@ from dotenv import dotenv_values
 
 import numpy as np
 import tensorflow as tf
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template, request
 from flask_cors import CORS, cross_origin
 from playwright.async_api import async_playwright
 from playwright_stealth import Stealth
@@ -421,6 +421,11 @@ def history_endpoint():
 
 @app.route('/')
 def index():
+    return render_template('index.html')
+
+
+@app.route('/api')
+def api_index():
     return jsonify({
         'name': 'MBBank API',
         'endpoints': ['/api/status', '/api/login', '/api/history', '/api/captcha/mbbank']

@@ -9,6 +9,16 @@ Dự án đã gộp thành một ứng dụng Python duy nhất, bao gồm cả:
 
 Workflow `Start application` chạy `python run.py`. Server lắng nghe trên cổng 5000 (hoặc cổng được chỉ định qua biến môi trường `PORT`).
 
+## Cách dùng đơn giản (không cần terminal)
+
+Mở URL của app trong trình duyệt, điền 3 ô:
+
+1. **Số điện thoại** (MB_PHONE)
+2. **Mật khẩu** (MB_PASSWORD)
+3. **Số tài khoản** (MB_STK)
+
+Bấm nút **Lấy lịch sử giao dịch** — lần đầu mất 30–60 giây, sau đó hiện số dư và bảng giao dịch.
+
 ## Cấu hình bắt buộc
 
 Có 2 cách nhập thông tin đăng nhập. **Cách 1 (Replit Secrets) an toàn hơn** và đã được cấu hình sẵn.
