@@ -5,6 +5,7 @@ tf_keras
 numpy
 matplotlib
 playwright
+playwright-stealth
 flask
 flask-cors
 keras
@@ -13,3 +14,4 @@ numpy
 playwright
 tensorflow
 tf_keras
+playwright-stealth

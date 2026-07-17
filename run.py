@@ -5,14 +5,16 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 import asyncio
 import base64
+import datetime
 import time
-from threading import Lock
+from threading import Lock, Thread
 
 import numpy as np
 import tensorflow as tf
 from flask import Flask, jsonify, request
 from flask_cors import CORS, cross_origin
 from playwright.async_api import async_playwright
+from playwright_stealth import Stealth
 import tf_keras as keras
 from tf_keras import layers
 from tf_keras.models import model_from_json
@@ -54,8 +56,10 @@ def standardize_base64(s: str) -> str:
 
 
 def encode_base64x(img_b64: str):
-    img = tf.io.decode_base64(standardize_base64(img_b64))
-    img = tf.io.decode_png(img, channels=1)
+    # Dùng base64 của Python để tránh lỗi "Invalid character found in base64" của tf.io.decode_base64
+    import base64
+    img_bytes = base64.b64decode(standardize_base64(img_b64))
+    img = tf.io.decode_png(tf.constant(img_bytes), channels=1)
     img = tf.image.convert_image_dtype(img, tf.float32)
     img = tf.image.resize(img, [img_height, img_width])
     img = tf.transpose(img, perm=[1, 0, 2])
@@ -70,8 +74,14 @@ def decode_batch_predictions(pred):
 
 
 def solve_captcha_local(img_b64: str) -> str:
+    import re
+    clean = img_b64.strip() if img_b64 else ''
+    invalid = set(re.findall(r'[^A-Za-z0-9+/=]', clean))
+    if invalid:
+        print(f'⚠️ Invalid base64 chars: {invalid}')
+    print(f'🔤 Captcha base64 length: {len(clean)}, last 10 chars: {clean[-10:]}')
     with model_lock:
-        image_encode = encode_base64x(img_b64)["image"]
+        image_encode = encode_base64x(clean)["image"]
         listImage = np.array([image_encode])
         preds = loaded_model_mb.predict(listImage, verbose=0)
         pred_texts = decode_batch_predictions(preds)
@@ -111,21 +121,38 @@ class MBBankSession:
             except Exception:
                 pass
         self.playwright = await async_playwright().start()
-        self.browser = await self.playwright.chromium.launch(
-            headless=True,
-            args=[
-                '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-                '--disable-gpu', '--disable-images', '--disable-extensions',
-                '--disable-background-networking', '--disable-sync'
-            ]
-        )
+        # Dùng Chrome đầy đủ thay vì headless shell để tránh bị Akamai chặn
+        chrome_path = await self._find_chrome_executable()
+        launch_args = [
+            '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+            '--disable-gpu', '--disable-images', '--disable-extensions',
+            '--disable-background-networking', '--disable-sync'
+        ]
+        launch_kwargs = {'headless': True, 'args': launch_args}
+        if chrome_path:
+            launch_kwargs['executable_path'] = chrome_path
+        self.browser = await self.playwright.chromium.launch(**launch_kwargs)
         context = await self.browser.new_context(
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             extra_http_headers={'Accept-Language': 'vi-VN,vi;q=0.9'}
         )
         await context.route('**/*', self._block_resources)
         self.page = await context.new_page()
+        stealth = Stealth()
+        await stealth.apply_stealth_async(self.page)
         self.logged_in = False
+
+    async def _find_chrome_executable(self):
+        from pathlib import Path
+        home = Path.home()
+        candidates = [
+            Path('.cache/ms-playwright/chromium-1228/chrome-linux64/chrome').resolve(),
+            home / '.cache/ms-playwright/chromium-1228/chrome-linux64/chrome',
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return str(candidate)
+        return None
 
     async def _block_resources(self, route, request):
         if request.resource_type in ['image', 'stylesheet', 'font', 'media']:
@@ -174,7 +201,7 @@ class MBBankSession:
                 raise Exception('Giải captcha thất bại')
             print('📝 Captcha:', captcha_text)
 
-            captcha_input = await self.page.locator('input[placeholder*="MÃ KIỂM TRA"]').first
+            captcha_input = self.page.locator('input[placeholder*="MÃ KIỂM TRA"]').first
             if await captcha_input.count() > 0:
                 await captcha_input.click(click_count=3)
                 await captcha_input.type(captcha_text, delay=5)
@@ -241,15 +268,16 @@ class MBBankSession:
                 });
                 let balance = '';
                 const allText = document.body.innerText;
-                const balanceMatch = allText.match(/(?:Số dư|Dư nợ|Số dư khả dụng|Available Balance)[:\\s]*([\\d.,]+)/i);
+                const balanceMatch = allText.match(/TỔNG SỐ DƯ[\s\S]{0,500}?(\d{1,3}(?:,\d{3})+)\s*VND/i) ||
+                                      allText.match(/(?:Số dư|Dư nợ|Số dư khả dụng|Available Balance)[:\s]*([\d.,]+)/i);
                 if (balanceMatch) {
-                    balance = balanceMatch[1].replace(/\\./g, '').replace(/,/g, '');
+                    balance = balanceMatch[1].replace(/\./g, '').replace(/,/g, '');
                 } else {
                     const els = document.querySelectorAll('.balance, .account-balance, [class*="balance"], [class*="sodu"]');
                     for (const el of els) {
                         const txt = el.textContent.trim();
-                        if (/[\\d.,]+/.test(txt)) {
-                            balance = txt.replace(/[^\\d]/g, '');
+                        if (/^[\d.,]+$/.test(txt)) {
+                            balance = txt.replace(/[^\d]/g, '');
                             break;
                         }
                     }
@@ -285,7 +313,7 @@ class MBBankSession:
                 'message': 'Thành công',
                 'availableBalance': balance,
                 'TranList': tran_list,
-                'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+                'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat()
             }
             self.last_history_time = time.time()
 
@@ -301,7 +329,26 @@ class MBBankSession:
             raise
 
 
+class BrowserWorker:
+    """Chạy tất cả thao tác Playwright trong một thread/event loop duy nhất
+    để tránh lỗi khi dùng asyncio.run() nhiều lần với cùng một browser session."""
+    def __init__(self, session):
+        self.session = session
+        self.loop = asyncio.new_event_loop()
+        self.thread = Thread(target=self._run_loop, daemon=True)
+        self.thread.start()
+
+    def _run_loop(self):
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
+    def run(self, coro, timeout=300):
+        future = asyncio.run_coroutine_threadsafe(coro, self.loop)
+        return future.result(timeout=timeout)
+
+
 mb_session = MBBankSession()
+worker = BrowserWorker(mb_session)
 
 
 # ----------------------------
@@ -333,7 +380,7 @@ def status():
 
 @app.route('/api/login', methods=['POST', 'GET'])
 def login_endpoint():
-    result = asyncio.run(mb_session.login())
+    result = worker.run(mb_session.login())
     return jsonify(result)
 
 
@@ -343,9 +390,9 @@ def history_endpoint():
         return jsonify(mb_session.last_history_data)
     if not mb_session.logged_in:
         print('🔄 Session expired, auto-login...')
-        asyncio.run(mb_session.login())
+        worker.run(mb_session.login())
     try:
-        result = asyncio.run(mb_session.get_history())
+        result = worker.run(mb_session.get_history())
         return jsonify(result)
     except Exception as e:
         return jsonify(status='error', message=str(e)), 500
