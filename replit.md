@@ -31,3 +31,4 @@ Thêm các secret sau trong Replit (không để trực tiếp trong code):
 
 - Captcha được giải hoàn toàn offline bằng model local, không còn gọi API thuê bên ngoài như file `apimbbank.js` cũ.
 - File `apimbbank.js` đã được lưu lại dưới tên `apimbbank.js.bak` để tham khảo nếu cần.
+- Model Keras 2 cũ (`model_mb.json` + `model_mb.h5`) được load qua gói `tf_keras` thay vì `keras` 3, để tương thích với TensorFlow 2.21+ trên Python 3.12.
