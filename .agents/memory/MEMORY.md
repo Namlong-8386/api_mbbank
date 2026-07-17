@@ -1,2 +1,0 @@
-- [Keras 2 model on modern TensorFlow](keras2-modern-tf.md) — Old `.json`+`.h5` models saved with Keras 2 need `tf_keras` on TF 2.16+, not `keras` 3.
-- [Playwright on NixOS/Replit](playwright-nixos.md) — Chromium needs system deps: nspr, nss, xorg.* X libs, mesa, libgbm, alsa-lib, libdrm, libxkbcommon, cairo, pango, atk, cups, dbus, expat, gtk3, gdk-pixbuf.
