@@ -252,7 +252,7 @@ class MBBankSession:
             }''')
             await asyncio.sleep(2)
 
-            data = await self.page.evaluate('''() => {
+            data = await self.page.evaluate(r'''() => {
                 const items = [];
                 document.querySelectorAll('table tbody tr').forEach(row => {
                     const cells = row.querySelectorAll('td');
@@ -386,7 +386,10 @@ def login_endpoint():
 
 @app.route('/api/history', methods=['POST', 'GET'])
 def history_endpoint():
-    if mb_session.last_history_data and (time.time() - mb_session.last_history_time) < 30:
+    # Mặc định cache 5 phút để tránh mở lại trình duyệt + đăng nhập MBBank mỗi lần reload.
+    # Thêm ?refresh=1 để ép lấy dữ liệu mới.
+    force_refresh = request.args.get('refresh') in ('1', 'true', 'yes')
+    if not force_refresh and mb_session.last_history_data and (time.time() - mb_session.last_history_time) < 300:
         return jsonify(mb_session.last_history_data)
     if not mb_session.logged_in:
         print('🔄 Session expired, auto-login...')
