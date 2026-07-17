@@ -25,7 +25,9 @@ Thêm các secret sau trong Replit (không để trực tiếp trong code):
   - Trả về: `{"status": "success", "captcha": "..."}`
 - `GET /api/status` — Trạng thái đăng nhập
 - `GET /api/login` — Đăng nhập MBBank
-- `GET /api/history` — Lấy lịch sử giao dịch (tự động login nếu cần)
+- `GET /api/history` — Lấy lịch sử giao dịch (tự động login nếu cần, cache 30 giây)
+  - Thêm `?refresh=1` hoặc body `{"refresh": 1}` để bỏ qua cache.
+- `GET /api/history/refresh` — Lấy lịch sử mới nhất, luôn bỏ qua cache.
 
 ## Lưu ý
 

@@ -268,16 +268,16 @@ class MBBankSession:
                 });
                 let balance = '';
                 const allText = document.body.innerText;
-                const balanceMatch = allText.match(/TỔNG SỐ DƯ[\s\S]{0,500}?(\d{1,3}(?:,\d{3})+)\s*VND/i) ||
-                                      allText.match(/(?:Số dư|Dư nợ|Số dư khả dụng|Available Balance)[:\s]*([\d.,]+)/i);
+                const balanceMatch = allText.match(/TỔNG SỐ DƯ[\\s\\S]{0,500}?(\\d{1,3}(?:,\\d{3})+)\\s*VND/i) ||
+                                      allText.match(/(?:Số dư|Dư nợ|Số dư khả dụng|Available Balance)[:\\s]*([\\d.,]+)/i);
                 if (balanceMatch) {
-                    balance = balanceMatch[1].replace(/\./g, '').replace(/,/g, '');
+                    balance = balanceMatch[1].replace(/\\./g, '').replace(/,/g, '');
                 } else {
                     const els = document.querySelectorAll('.balance, .account-balance, [class*="balance"], [class*="sodu"]');
                     for (const el of els) {
                         const txt = el.textContent.trim();
-                        if (/^[\d.,]+$/.test(txt)) {
-                            balance = txt.replace(/[^\d]/g, '');
+                        if (/^[\\d.,]+$/.test(txt)) {
+                            balance = txt.replace(/[^\\d]/g, '');
                             break;
                         }
                     }
@@ -386,8 +386,22 @@ def login_endpoint():
 
 @app.route('/api/history', methods=['POST', 'GET'])
 def history_endpoint():
-    if mb_session.last_history_data and (time.time() - mb_session.last_history_time) < 30:
+    force_refresh = request.args.get('refresh') == '1' or (request.json or {}).get('refresh') == '1'
+    if not force_refresh and mb_session.last_history_data and (time.time() - mb_session.last_history_time) < 30:
         return jsonify(mb_session.last_history_data)
+    if not mb_session.logged_in:
+        print('🔄 Session expired, auto-login...')
+        worker.run(mb_session.login())
+    try:
+        result = worker.run(mb_session.get_history())
+        return jsonify(result)
+    except Exception as e:
+        return jsonify(status='error', message=str(e)), 500
+
+
+@app.route('/api/history/refresh', methods=['POST', 'GET'])
+def history_refresh_endpoint():
+    """Lấy lịch sử mới nhất, bỏ qua cache 30 giây."""
     if not mb_session.logged_in:
         print('🔄 Session expired, auto-login...')
         worker.run(mb_session.login())
@@ -402,7 +416,7 @@ def history_endpoint():
 def index():
     return jsonify({
         'name': 'MBBank API',
-        'endpoints': ['/api/status', '/api/login', '/api/history', '/api/captcha/mbbank']
+        'endpoints': ['/api/status', '/api/login', '/api/history', '/api/history/refresh', '/api/captcha/mbbank']
     })
 
 
