@@ -37,3 +37,6 @@ env/
 # Backup files
 *.bak
 *.old
+
+# Environment variables
+.env

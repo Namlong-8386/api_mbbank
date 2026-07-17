@@ -9,6 +9,8 @@ import datetime
 import time
 from threading import Lock, Thread
 
+from dotenv import dotenv_values
+
 import numpy as np
 import tensorflow as tf
 from flask import Flask, jsonify, request
@@ -93,10 +95,19 @@ def solve_captcha_local(img_b64: str) -> str:
 # MBBank browser automation
 # ----------------------------
 MBBANK_URL = 'https://online.mbbank.com.vn'
+# Load credentials from .env file if it exists and has non-empty values;
+# otherwise fall back to environment variables (e.g. Replit Secrets).
+_dotenv = dotenv_values('.env') if os.path.exists('.env') else {}
+
+
+def _env(key):
+    return _dotenv.get(key) or os.getenv(key, '')
+
+
 CONFIG = {
-    'phone': os.getenv('MB_PHONE', ''),
-    'password': os.getenv('MB_PASSWORD', ''),
-    'stk': os.getenv('MB_STK', ''),
+    'phone': _env('MB_PHONE'),
+    'password': _env('MB_PASSWORD'),
+    'stk': _env('MB_STK'),
 }
 
 
@@ -386,22 +397,8 @@ def login_endpoint():
 
 @app.route('/api/history', methods=['POST', 'GET'])
 def history_endpoint():
-    force_refresh = request.args.get('refresh') == '1' or (request.json or {}).get('refresh') == '1'
-    if not force_refresh and mb_session.last_history_data and (time.time() - mb_session.last_history_time) < 30:
+    if mb_session.last_history_data and (time.time() - mb_session.last_history_time) < 30:
         return jsonify(mb_session.last_history_data)
-    if not mb_session.logged_in:
-        print('🔄 Session expired, auto-login...')
-        worker.run(mb_session.login())
-    try:
-        result = worker.run(mb_session.get_history())
-        return jsonify(result)
-    except Exception as e:
-        return jsonify(status='error', message=str(e)), 500
-
-
-@app.route('/api/history/refresh', methods=['POST', 'GET'])
-def history_refresh_endpoint():
-    """Lấy lịch sử mới nhất, bỏ qua cache 30 giây."""
     if not mb_session.logged_in:
         print('🔄 Session expired, auto-login...')
         worker.run(mb_session.login())
@@ -416,7 +413,7 @@ def history_refresh_endpoint():
 def index():
     return jsonify({
         'name': 'MBBank API',
-        'endpoints': ['/api/status', '/api/login', '/api/history', '/api/history/refresh', '/api/captcha/mbbank']
+        'endpoints': ['/api/status', '/api/login', '/api/history', '/api/captcha/mbbank']
     })
 
 
